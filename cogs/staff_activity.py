@@ -132,6 +132,12 @@ class StaffActivity(commands.Cog):
         if interaction.type != discord.InteractionType.component:
             return
         if interaction.data.get("custom_id") == "staff_activity_refresh":
+            member = interaction.user
+            has_ownership = any(r.id == config.OWNERSHIP_ROLE_ID for r in getattr(member, "roles", []))
+            if not has_ownership:
+                await interaction.response.send_message("⛔ Μόνο το Ownership μπορεί να κάνει refresh.", ephemeral=True)
+                return
+            await interaction.response.defer()
             view = self._build_panel_view(interaction.guild)
             # FIX: flags απαραίτητα για Components V2 στο edit_message
             await interaction.channel.send(view=view)
