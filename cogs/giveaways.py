@@ -28,7 +28,6 @@ import string
 import datetime
 from typing import Optional
 
-import aiosqlite
 import discord
 from discord import ui, app_commands
 from discord.ext import commands, tasks
@@ -36,8 +35,7 @@ from discord.ext import commands, tasks
 import config
 from emojis import emoji
 from utils.permissions import has_roles
-
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "giveaways.db")
+from utils import turso
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -53,6 +51,18 @@ def _parse_duration(text: str) -> Optional[datetime.timedelta]:
         return None
     d, h, mins = (int(x) if x else 0 for x in m.groups())
     return datetime.timedelta(days=d, hours=h, minutes=mins)
+
+
+def _parse_signed_duration(text: str) -> Optional[datetime.timedelta]:
+    """Ίδιο με _parse_duration αλλά δέχεται προαιρετικό '-' μπροστά για μείωση χρόνου (π.χ. -30m)."""
+    text = text.strip()
+    negative = text.startswith("-")
+    if negative:
+        text = text[1:]
+    delta = _parse_duration(text)
+    if delta is None:
+        return None
+    return -delta if negative else delta
 
 
 def _fmt_dt(ts: float) -> str:
@@ -131,7 +141,7 @@ class CreateGiveawayModal(ui.Modal, title="Δημιουργία Giveaway"):
 
 class EditGiveawayModal(ui.Modal, title="Επεξεργασία Giveaway"):
     prize = ui.TextInput(label="Νέο Έπαθλο", max_length=200, required=False)
-    duration_add = ui.TextInput(label="Παράταση χρόνου (προαιρετικό)", placeholder="π.χ. 1h — προσθέτει χρόνο", required=False, max_length=20)
+    duration_add = ui.TextInput(label="Χρόνος +/- (προαιρετικό)", placeholder="π.χ. 1h προσθέτει, -30m αφαιρεί", required=False, max_length=20)
     winners = ui.TextInput(label="Νέος αριθμός νικητών (προαιρετικό)", required=False, max_length=2)
     required_role = ui.TextInput(label="Required Role ID (0 για αφαίρεση)", required=False, max_length=20)
 
@@ -176,9 +186,10 @@ class EditGiveawayModal(ui.Modal, title="Επεξεργασία Giveaway"):
                 pass
 
         if duration_add:
-            delta = _parse_duration(duration_add)
+            delta = _parse_signed_duration(duration_add)
             if delta:
-                new_end = gw["end_time"] + delta.total_seconds()
+                now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
+                new_end = max(gw["end_time"] + delta.total_seconds(), now_ts + 10)
                 updates["end_time"] = new_end
                 changes.append(f"Νέος χρόνος → {_fmt_dt(new_end)}")
 
@@ -214,18 +225,95 @@ class EditGiveawayModal(ui.Modal, title="Επεξεργασία Giveaway"):
             ]
         ))
 
+class AddMemberModal(ui.Modal, title="Προσθήκη Μελών στο Giveaway"):
+    users = ui.TextInput(
+        label="User ID(s)",
+        style=discord.TextStyle.paragraph,
+        placeholder="Ένα ή περισσότερα ID, χωρισμένα με κόμμα/κενό/νέα γραμμή",
+        max_length=1000,
+        required=True,
+    )
+
+    def __init__(self, giveaway_id: str, cog: "Giveaways"):
+        super().__init__()
+        self.giveaway_id = giveaway_id
+        self.cog = cog
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        gw = await self.cog.db_get(self.giveaway_id)
+        if not gw or gw["status"] != "active":
+            await interaction.followup.send("❌ Το giveaway δεν βρέθηκε ή έχει λήξει.", ephemeral=True)
+            return
+
+        tokens = re.split(r"[,\s]+", str(self.users).strip())
+        entries: list = gw["entries"]
+        added, already, invalid, missing = [], [], [], []
+
+        for raw in tokens:
+            token = raw.strip("<@!>").strip()
+            if not token:
+                continue
+            if not token.isdigit():
+                invalid.append(raw)
+                continue
+            uid = int(token)
+            member = interaction.guild.get_member(uid)
+            if not member:
+                missing.append(raw)
+                continue
+            if uid in entries:
+                already.append(raw)
+                continue
+            entries.append(uid)
+            added.append(uid)
+
+        if added:
+            await self.cog.db_save_entries(self.giveaway_id, entries)
+            gw["entries"] = entries
+            guild = interaction.guild
+            ch = guild.get_channel(gw["channel_id"])
+            if ch:
+                try:
+                    msg = await ch.fetch_message(gw["message_id"])
+                    await msg.edit(view=self.cog.build_panel(gw, guild))
+                except (discord.NotFound, discord.HTTPException):
+                    pass
+
+        summary = []
+        if added:
+            summary.append(f"{emoji('giveaway','add_member')} Προστέθηκαν: " + ", ".join(f"<@{u}>" for u in added))
+        if already:
+            summary.append("ℹ️ Ήδη συμμετείχαν: " + ", ".join(already))
+        if missing:
+            summary.append("⚠️ Δεν βρέθηκαν στον server: " + ", ".join(missing))
+        if invalid:
+            summary.append("❌ Μη έγκυρα ID: " + ", ".join(invalid))
+        await interaction.followup.send("\n".join(summary) or "Καμία αλλαγή.", ephemeral=True)
+
+        if added:
+            await _send_log(interaction.guild, _log_embed(interaction.guild,
+                title=f"{emoji('giveaway','add_member')} Μέλη Προστέθηκαν στο Giveaway",
+                color=0x57F287,
+                fields=[
+                    ("ID", f"`#{self.giveaway_id}`", True),
+                    ("Έπαθλο", gw["prize"], True),
+                    ("Προστέθηκαν από", interaction.user.mention, True),
+                    ("Μέλη", " ".join(f"<@{u}>" for u in added), False),
+                ]
+            ))
+
+
 # ── Main Cog ──────────────────────────────────────────────────────────────────
 
 class Giveaways(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db: Optional[aiosqlite.Connection] = None
 
     async def cog_load(self):
-        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-        self.db = await aiosqlite.connect(DB_PATH)
-        self.db.row_factory = aiosqlite.Row
-        await self.db.execute("""
+        # Turso (ή local sqlite fallback αν δεν έχουν μπει τα TURSO_* env vars) —
+        # έτσι τα giveaways ΔΕΝ χάνονται σε redeploy/reset στο Render.
+        await turso.async_execute("""
             CREATE TABLE IF NOT EXISTS giveaways (
                 id TEXT PRIMARY KEY,
                 guild_id INTEGER NOT NULL,
@@ -242,49 +330,40 @@ class Giveaways(commands.Cog):
                 created_at REAL NOT NULL
             )
         """)
-        await self.db.commit()
         self.check_giveaways.start()
 
     async def cog_unload(self):
         self.check_giveaways.cancel()
-        if self.db:
-            await self.db.close()
 
-    # ── DB helpers ────────────────────────────────────────────────────────────
+    # ── DB helpers (Turso) ───────────────────────────────────────────────────
+
+    @staticmethod
+    def _row_to_gw(d: dict) -> dict:
+        d = dict(d)
+        d["entries"] = json.loads(d["entries"])
+        d["winners"] = json.loads(d["winners"])
+        return d
 
     async def db_get(self, giveaway_id: str) -> Optional[dict]:
-        async with self.db.execute("SELECT * FROM giveaways WHERE id = ?", (giveaway_id,)) as cur:
-            row = await cur.fetchone()
-            if not row:
-                return None
-            d = dict(row)
-            d["entries"] = json.loads(d["entries"])
-            d["winners"] = json.loads(d["winners"])
-            return d
+        rows = await turso.async_execute("SELECT * FROM giveaways WHERE id = ?", [giveaway_id])
+        if not rows:
+            return None
+        return self._row_to_gw(rows[0])
 
     async def db_all_active(self) -> list[dict]:
-        async with self.db.execute("SELECT * FROM giveaways WHERE status = 'active'") as cur:
-            rows = await cur.fetchall()
-            result = []
-            for row in rows:
-                d = dict(row)
-                d["entries"] = json.loads(d["entries"])
-                d["winners"] = json.loads(d["winners"])
-                result.append(d)
-            return result
+        rows = await turso.async_execute("SELECT * FROM giveaways WHERE status = 'active'")
+        return [self._row_to_gw(r) for r in rows]
 
     async def db_update(self, giveaway_id: str, fields: dict):
         if not fields:
             return
         set_clause = ", ".join(f"{k} = ?" for k in fields)
         values = list(fields.values()) + [giveaway_id]
-        await self.db.execute(f"UPDATE giveaways SET {set_clause} WHERE id = ?", values)
-        await self.db.commit()
+        await turso.async_execute(f"UPDATE giveaways SET {set_clause} WHERE id = ?", values)
 
     async def db_save_entries(self, giveaway_id: str, entries: list[int]):
-        await self.db.execute("UPDATE giveaways SET entries = ? WHERE id = ?",
-                               (json.dumps(entries), giveaway_id))
-        await self.db.commit()
+        await turso.async_execute("UPDATE giveaways SET entries = ? WHERE id = ?",
+                                   [json.dumps(entries), giveaway_id])
 
     # ── Panel Builder ─────────────────────────────────────────────────────────
 
@@ -311,16 +390,17 @@ class Giveaways(commands.Cog):
             f"{emoji('giveaway','host')} **Host:** {host_str}\n"
             f"{emoji('giveaway','winners_count')} **Νικητές:** {gw['winner_count']}\n"
             f"{emoji('giveaway','entries')} **Συμμετοχές:** {entries_count}\n"
-            f"{emoji('giveaway','time')} **{'Έληξε' if is_ended else 'Λήγει'}:** {_fmt_dt(gw['end_time'])}\n"
-            f"{emoji('giveaway','id')} **ID:** `#{gw['id']}`"
+            f"{emoji('giveaway','time')} **{'Έληξε' if is_ended else 'Λήγει'}:** {_fmt_dt(gw['end_time'])}"
             f"{role_str}"
             f"{winners_str}"
         )
+        # Σκόπιμα ΔΕΝ εμφανίζεται το ID εδώ — φαίνεται μόνο στο Information panel.
 
         container = ui.Container(accent_colour=discord.Colour.gold() if not is_ended else discord.Colour.greyple())
 
         if config.GIVEAWAY_BANNER_URL:
             container.add_item(ui.MediaGallery(discord.MediaGalleryItem(media=config.GIVEAWAY_BANNER_URL)))
+            container.add_item(ui.Separator(spacing=discord.SeparatorSpacing.small))
 
         container.add_item(ui.TextDisplay(panel_text))
 
@@ -370,6 +450,10 @@ class Giveaways(commands.Cog):
         participants_btn = ui.Button(label="Participants", style=discord.ButtonStyle.secondary,
                                       emoji=emoji("giveaway", "participants") or "👥",
                                       custom_id=f"gw_participants:{gw['id']}")
+        add_member_btn = ui.Button(label="Add Member", style=discord.ButtonStyle.success,
+                                    emoji=emoji("giveaway", "add_member") or "➕",
+                                    custom_id=f"gw_addmember:{gw['id']}",
+                                    disabled=gw["status"] != "active")
 
         row1 = ui.ActionRow()
         row1.add_item(edit_btn)
@@ -379,6 +463,7 @@ class Giveaways(commands.Cog):
 
         row2 = ui.ActionRow()
         row2.add_item(participants_btn)
+        row2.add_item(add_member_btn)
         container.add_item(row2)
 
         view = ui.LayoutView(timeout=None)
@@ -409,14 +494,13 @@ class Giveaways(commands.Cog):
         msg = await interaction.channel.send(view=view)
         gw["message_id"] = msg.id
 
-        await self.db.execute("""
+        await turso.async_execute("""
             INSERT INTO giveaways
             (id, guild_id, channel_id, message_id, host_id, prize, winner_count,
              end_time, required_role_id, entries, status, winners, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (gw_id, guild.id, interaction.channel.id, msg.id, interaction.user.id,
-              prize, winner_count, end_ts, role_id, "[]", "active", "[]", now))
-        await self.db.commit()
+        """, [gw_id, guild.id, interaction.channel.id, msg.id, interaction.user.id,
+              prize, winner_count, end_ts, role_id, "[]", "active", "[]", now])
 
         await interaction.followup.send(f"✅ Giveaway δημιουργήθηκε! ID: `#{gw_id}`", ephemeral=True)
 
@@ -554,6 +638,8 @@ class Giveaways(commands.Cog):
             await self._handle_end_now(interaction, custom_id.split(":", 1)[1])
         elif custom_id.startswith("gw_participants:"):
             await self._handle_participants(interaction, custom_id.split(":", 1)[1])
+        elif custom_id.startswith("gw_addmember:"):
+            await self._handle_add_member(interaction, custom_id.split(":", 1)[1])
 
     # ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -697,6 +783,19 @@ class Giveaways(commands.Cog):
         view.add_item(container)
         await interaction.response.send_message(view=view, ephemeral=True)
 
+    async def _handle_add_member(self, interaction: discord.Interaction, gw_id: str):
+        gw = await self.db_get(gw_id)
+        if not gw:
+            await interaction.response.send_message("❌ Giveaway δεν βρέθηκε.", ephemeral=True)
+            return
+        if not _is_authorized(interaction.user, gw["host_id"]):
+            await interaction.response.send_message("⛔ Δεν έχεις δικαίωμα.", ephemeral=True)
+            return
+        if gw["status"] != "active":
+            await interaction.response.send_message("❌ Το giveaway έχει ήδη λήξει.", ephemeral=True)
+            return
+        await interaction.response.send_modal(AddMemberModal(gw_id, self))
+
     # ── Slash Commands ────────────────────────────────────────────────────────
 
     giveaway_group = app_commands.Group(name="giveaway", description="Giveaway commands")
@@ -724,8 +823,7 @@ class Giveaways(commands.Cog):
             except (discord.NotFound, discord.HTTPException):
                 pass
 
-        await self.db.execute("DELETE FROM giveaways WHERE id = ?", (giveaway_id.upper(),))
-        await self.db.commit()
+        await turso.async_execute("DELETE FROM giveaways WHERE id = ?", [giveaway_id.upper()])
 
         await interaction.response.send_message(f"✅ Giveaway `#{giveaway_id.upper()}` διαγράφηκε.", ephemeral=True)
         await _send_log(guild, _log_embed(guild,
