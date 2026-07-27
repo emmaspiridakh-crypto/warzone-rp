@@ -50,8 +50,8 @@ STAFF_TEAM_ROLE_IDS = [STAFF_ROLE_ID, MANAGER_ROLE_ID, OWNERSHIP_ROLE_ID]
 # TICKET SYSTEM #1 - SUPPORT (dropdown, 4 κατηγορίες, ξεχωριστό category η κάθε μία)
 # =========================================================
 TICKET_SUPPORT_CHANNEL_ID = 1519698625222017225  # PLACEHOLDER: πού θα σταλεί το panel (slash command target)
-TICKET_SUPPORT_BANNER_URL = "https://i.imgur.com/0xmFvSH.jpeg"
-TICKET_SUPPORT_THUMBNAIL_URL = "https://i.imgur.com/Ntirila.gif"
+TICKET_SUPPORT_BANNER_URL = "https://i.imgur.com/5O2AMGE.jpeg"
+TICKET_SUPPORT_THUMBNAIL_URL = "https://i.imgur.com/jCZC2Y6.gif"
 
 CAT_TICKET_OWNERSHIP_ID = 1528889138302947488  # PLACEHOLDER category
 CAT_TICKET_REPORT_ID    = 1528889946423689429  # PLACEHOLDER category
@@ -65,16 +65,16 @@ CAT_TICKET_REWARD_ID    = 1528889800130691092  # PLACEHOLDER category (Claim You
 # =========================================================
 CAT_JOBS_ID = 1528890330345242654 # PLACEHOLDER (ΚΟΙΝΟ category civilian + criminal)
 
-TICKET_JOBS_BANNER_URL = "https://i.imgur.com/0xmFvSH.jpeg"
-TICKET_JOBS_THUMBNAIL_URL = "https://i.imgur.com/Ntirila.gif"
+TICKET_JOBS_BANNER_URL = "https://i.imgur.com/5O2AMGE.jpeg"
+TICKET_JOBS_THUMBNAIL_URL = "https://i.imgur.com/jCZC2Y6.gif"
 
 # =========================================================
 # TICKET SYSTEM #3 - DONATE (button, δικό του category)
 # =========================================================
 CAT_DONATE_ID = 1528890179459354736 # PLACEHOLDER category
 
-TICKET_DONATE_BANNER_URL = "https://i.imgur.com/0xmFvSH.jpeg"
-TICKET_DONATE_THUMBNAIL_URL = "https://i.imgur.com/Ntirila.gif"
+TICKET_DONATE_BANNER_URL = "https://i.imgur.com/5O2AMGE.jpeg"
+TICKET_DONATE_THUMBNAIL_URL = "https://i.imgur.com/jCZC2Y6.gif"
 
 # Channel όπου γίνεται ping το staff team όταν ανοίγει ΟΠΟΙΟΔΗΠΟΤΕ ticket (support/jobs/donate) ή temp voice
 STAFF_PING_CHANNEL_ID = 1528890923575152743  # PLACEHOLDER
@@ -99,7 +99,7 @@ TEMP_VOICE_CATEGORY_ID     =  1529169124524036106  # PLACEHOLDER (εκεί δη�
 STAFF_ACTIVITY_VOICE_CHANNEL_ID = 1519662330504413225 # PLACEHOLDER (το channel που μετράμε χρόνο)
 STAFF_ACTIVITY_PANEL_CHANNEL_ID = 1528891407543177367 # PLACEHOLDER (πού στέλνεται/μένει το leaderboard panel)
 STAFF_ACTIVITY_LOG_CHANNEL_ID   = 1528882023886880889 # PLACEHOLDER
-STAFF_ACTIVITY_BANNER_URL = "https://i.imgur.com/0xmFvSH.jpeg"
+STAFF_ACTIVITY_BANNER_URL = "https://i.imgur.com/5O2AMGE.jpeg"
 
 # =========================================================
 # LOGS (Requirement 8)
@@ -128,10 +128,10 @@ LOG_SAY_DMALL_CHANNEL_ID    = 1528881763785637898 # PLACEHOLDER (say, say2, dmal
 # =========================================================
 APPLICATIONS_PANEL_CHANNEL_ID = 1528892710742790174   # PLACEHOLDER (πού στέλνεται το panel)
 APPLICATIONS_CATEGORY_ID      = 1528890443243458571 # PLACEHOLDER (εκεί ανοίγουν τα application channels)
-APPLICATIONS_BANNER_URL = "https://i.imgur.com/0xmFvSH.jpeg"
+APPLICATIONS_BANNER_URL = "https://i.imgur.com/5O2AMGE.jpeg"
 
 LOG_GIVEAWAY_CHANNEL_ID = 1529399403746689074  # PLACEHOLDER
-GIVEAWAY_BANNER_URL = "https://i.imgur.com/0xmFvSH.jpeg"  # PLACEHOLDER (banner στο giveaway panel)
+GIVEAWAY_BANNER_URL = "https://i.imgur.com/5O2AMGE.jpeg"  # PLACEHOLDER (banner στο giveaway panel)
 
 # =========================================================
 # WARNING SYSTEM
