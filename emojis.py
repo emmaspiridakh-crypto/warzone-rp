@@ -18,7 +18,7 @@ Custom emojis χωρισμένα ανά κατηγορία.
 
 EMOJIS = {
     "tickets": {
-        "ownership": "<:ownership:1528824025600622632>",
+        "ownership": "<:ownership:1530210407275561071>",
         "report": "<a:report:1528885796159885503>",
         "support": "<a:support:1528885660340195470>",
         "bug": "<:bug:1528885729730498761>",
@@ -55,7 +55,7 @@ EMOJIS = {
     "staff_activity": {
         "on_duty": "<a:on_duty:1528887355698581697>",
         "off_duty": "<a:off_duty:1528887254981017705>",
-        "leaderboard": "<:leaderboard:1528824025600622632>",
+        "leaderboard": "<:leaderboard:1530210407275561071>",
     },
     "applications": {
         "elas": "<:elas:1520566656370217010>",
@@ -89,7 +89,7 @@ EMOJIS = {
     "entries":       "<:gw_entries:1529409844514258994>",
     "time":          "<a:gw_time:1529409247530582016>",
     "id":            "<:gw_id:1529408099394257026>",
-    "role":          "<:gw_role:1528824025600622632>",
+    "role":          "<:gw_role:1530210407275561071>",
     },
 }
 
