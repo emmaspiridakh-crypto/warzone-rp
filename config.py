@@ -272,7 +272,7 @@ STATUS_BOTS_CHANNEL_ID    = 1525307053722304544  # PLACEHOLDER
 # GAME STATUS PANEL (Roblox)
 # =========================================================
 ROBLOX_UNIVERSE_ID = 10557509527  # PLACEHOLDER: universe id του Roblox game
-ROBLOX_GAME_URL = f"https://create.roblox.com/dashboard/creations/experiences/8512095248/overview"
+ROBLOX_GAME_URL = f"https://www.roblox.com/games/91226809988563/Warzone-Roleplay"
 GAME_PANEL_BANNER_URL = "https://i.imgur.com/5O2AMGE.jpeg"  # PLACEHOLDER: banner εικόνα
 
 # =========================================================
