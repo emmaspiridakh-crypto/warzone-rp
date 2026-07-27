@@ -90,6 +90,17 @@ EMOJIS = {
     "time":          "<a:gw_time:1529409247530582016>",
     "id":            "<:gw_id:1529408099394257026>",
     "role":          "<:gw_role:1530210407275561071>",
+    "add_member":    "<:gw_add_member:1531203868958920764>",  # PLACEHOLDER: βάλε custom emoji ID
+    },
+    "invites": {
+        "invites":  "<:invites:1531204006469177434>",   # PLACEHOLDER: βάλε custom emoji ID
+        "joined":   "<:inv_joined:1529410479233962026>",  # PLACEHOLDER
+        "left":     "<:inv_left:1529410448649355366>",    # PLACEHOLDER
+        "leaderboard": "<:inv_board:1531204190938988554>",  # PLACEHOLDER
+    },
+    "game": {
+        "connect": "<a:game_connect:1528887355698581697>",  # PLACEHOLDER: βάλε custom emoji ID
+        "status":  "<a:game_status:1529410389283045376>",  # PLACEHOLDER
     },
 }
 
