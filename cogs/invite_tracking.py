@@ -22,10 +22,13 @@ Invite tracking: ποιος προσκάλεσε ποιον, πόσα invites έ
 from __future__ import annotations
 
 import discord
+from discord import app_commands, ui
 from discord.ext import commands
 
 import config
+from emojis import emoji
 from utils import storage
+from utils.permissions import member_has_any_role
 
 STATS_STORE = "invite_stats"              # {inviter_id: {"total": int, "joined_ids": [...], "left_ids": [...]}}
 ATTRIBUTION_STORE = "invite_attribution"  # {member_id: inviter_id | "vanity" | "unknown"}
@@ -194,13 +197,81 @@ class InviteTracking(commands.Cog):
         inviter = guild.get_member(int(inviter_key)) if inviter_key.isdigit() else None
         embed = discord.Embed(title="📤 Μέλος έφυγε (είχε invite)", color=0xED4245, timestamp=discord.utils.utcnow())
         embed.add_field(name="Μέλος", value=f"{member.mention} (`{member.id}`)", inline=False)
-        embed.add_field(name="Είχε προσκληθεί από", value=(inviter.mention if inviter else f"`{inviter_key}`"), inline=False)
+        embed.add_field(name="Είχε μπει από", value=(inviter.mention if inviter else f"`{inviter_key}`"), inline=False)
         embed.add_field(name="Σύνολο invites", value=str(entry["total"]), inline=True)
         embed.add_field(name="Ακόμα μέσα", value=str(len(entry["joined_ids"])), inline=True)
         embed.add_field(name="Έχουν φύγει", value=str(len(entry["left_ids"])), inline=True)
         if guild.icon:
             embed.set_thumbnail(url=guild.icon.url)
         await log_channel.send(embed=embed)
+
+
+    # ── /invites command ─────────────────────────────────────────────────────
+
+    def _build_user_panel(self, guild: discord.Guild, member: discord.Member) -> ui.LayoutView:
+        stats = storage.get_store(STATS_STORE)
+        entry = stats.get(str(member.id), {"total": 0, "joined_ids": [], "left_ids": []})
+
+        text = (
+            f"## {emoji('invites','invites')} Invites — {member.mention}\n"
+            f"{emoji('invites','invites')} **Σύνολο Invites:** {entry['total']}\n"
+            f"{emoji('invites','joined')} **Ακόμα μέσα:** {len(entry['joined_ids'])}\n"
+            f"{emoji('invites','left')} **Έχουν φύγει:** {len(entry['left_ids'])}"
+        )
+
+        container = ui.Container(accent_colour=discord.Colour.blurple())
+        if member.display_avatar:
+            section = ui.Section(accessory=ui.Thumbnail(media=member.display_avatar.url))
+            section.add_item(ui.TextDisplay(text))
+            container.add_item(section)
+        else:
+            container.add_item(ui.TextDisplay(text))
+
+        view = ui.LayoutView(timeout=None)
+        view.add_item(container)
+        return view
+
+    def _build_leaderboard_panel(self, guild: discord.Guild) -> ui.LayoutView:
+        stats = storage.get_store(STATS_STORE)
+        rows = sorted(stats.items(), key=lambda kv: kv[1].get("total", 0), reverse=True)
+
+        lines = [f"## {emoji('invites','leaderboard')} Invites Server — {guild.name}\n"]
+        if not rows:
+            lines.append("*Δεν υπάρχουν ακόμα καταγεγραμμένα invites.*")
+        else:
+            for i, (inviter_id, entry) in enumerate(rows[:25], start=1):
+                lines.append(
+                    f"`{i}.` <@{inviter_id}> — **{entry.get('total', 0)}** "
+                    f"({emoji('invites','joined')} {len(entry.get('joined_ids', []))} · "
+                    f"{emoji('invites','left')} {len(entry.get('left_ids', []))})"
+                )
+
+        container = ui.Container(accent_colour=discord.Colour.blurple())
+        header_text = "\n".join(lines)
+        if guild.icon:
+            section = ui.Section(accessory=ui.Thumbnail(media=guild.icon.url))
+            section.add_item(ui.TextDisplay(header_text))
+            container.add_item(section)
+        else:
+            container.add_item(ui.TextDisplay(header_text))
+
+        view = ui.LayoutView(timeout=None)
+        view.add_item(container)
+        return view
+
+    @app_commands.command(name="invites", description="Δείχνει τα invites ενός μέλους, ή όλα τα invites του server")
+    @app_commands.describe(user="Άφησέ το κενό για να δεις τα invites όλου του server")
+    async def invites_cmd(self, interaction: discord.Interaction, user: discord.Member | None = None):
+        if not member_has_any_role(interaction.user, config.STAFF_TEAM_ROLE_IDS):
+            await interaction.response.send_message("⛔ Δεν έχεις δικαίωμα να χρησιμοποιήσεις αυτή την εντολή.", ephemeral=True)
+            return
+
+        if user is not None:
+            view = self._build_user_panel(interaction.guild, user)
+        else:
+            view = self._build_leaderboard_panel(interaction.guild)
+
+        await interaction.response.send_message(view=view, ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
