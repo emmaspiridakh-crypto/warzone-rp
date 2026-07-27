@@ -45,7 +45,7 @@ class GamePanel(commands.Cog):
         name = info.get("name") or "Warzone RP"
 
         status_text = (
-            f"## {emoji('game','status')} {name}\n"
+            f"## {emoji('game','status')} {name}\n - Game Status"
             f"{emoji('game','status')} **Παίκτες τώρα:** {playing if playing is not None else '—'}\n"
             f"{emoji('invites','invites')} **Συνολικές επισκέψεις:** {visits if visits is not None else '—'}"
         )
