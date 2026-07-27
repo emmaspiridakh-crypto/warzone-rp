@@ -45,7 +45,7 @@ class GamePanel(commands.Cog):
         name = info.get("name") or "Warzone RP"
 
         status_text = (
-            f"## {emoji('game','status')} {name}\n - Game Status"
+            f"## {emoji('game','status')} {name}\n"
             f"{emoji('game','status')} **Παίκτες τώρα:** {playing if playing is not None else '—'}\n"
             f"{emoji('invites','invites')} **Συνολικές επισκέψεις:** {visits if visits is not None else '—'}"
         )
@@ -73,7 +73,7 @@ class GamePanel(commands.Cog):
         view.add_item(container)
         return view
 
-    @app_commands.command(name="panel-game", description="Στέλνει το panel σύνδεσης με το Roblox game")
+    @app_commands.command(name="panel-game", description="Στέλνει το panel με το Roblox game")
     @slash_is_staff_team()
     async def panel_game(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
