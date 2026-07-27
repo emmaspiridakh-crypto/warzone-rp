@@ -40,6 +40,8 @@ COGS = [
     "cogs.invite_tracking",
     "cogs.giveaways",
     "cogs.warnings",
+    "cogs.bot_status",
+    "cogs.game_panel",
 ]
 
 
