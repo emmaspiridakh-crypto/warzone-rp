@@ -225,7 +225,8 @@ class Applications(commands.Cog):
 
         guild = interaction.guild
         applicant = guild.get_member(info["user_id"])
-        log_channel = guild.get_channel(config.LOG_APPLICATIONS_CHANNEL_ID)
+        log_channel_id = config.LOG_APPLICATIONS_CHANNEL_IDS.get(info["type"], config.LOG_APPLICATIONS_CHANNEL_ID)
+        log_channel = guild.get_channel(log_channel_id)
 
         type_label = config.APPLICATION_TYPES[info["type"]]["label"]
         questions = config.APPLICATION_TYPES[info["type"]]["questions"]
