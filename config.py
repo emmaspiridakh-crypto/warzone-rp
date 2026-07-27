@@ -109,7 +109,19 @@ LOG_ROLES_CHANNEL_ID      = 1528881626203820194  # PLACEHOLDER
 LOG_CHANNELS_CHANNEL_ID   = 1528881391675244735 # PLACEHOLDER (create/delete/edit channels)
 LOG_MESSAGES_CHANNEL_ID   = 1528881469869522974 # PLACEHOLDER (edit/delete messages)
 LOG_VOICE_CHANNEL_ID      = 1528881261966528722  # PLACEHOLDER
-LOG_APPLICATIONS_CHANNEL_ID = 1528881706860282057     # PLACEHOLDER
+LOG_APPLICATIONS_CHANNEL_ID = 1528881706860282057     # PLACEHOLDER (fallback + shared staff/manager channel)
+
+# Ξεχωριστό channel ανά τύπο αίτησης όταν στέλνεται (Send) — ΕΚΤΟΣ από staff/manager
+# που πάνε μαζί στο ΙΔΙΟ channel (LOG_APPLICATIONS_CHANNEL_ID).
+# Βάλε το δικό σου channel ID για κάθε τύπο.
+LOG_APPLICATIONS_CHANNEL_IDS = {
+    "elas":     1529810150058098718,  # PLACEHOLDER: βάλε το channel ΕΛ.ΑΣ
+    "ekab":     1529810379796910222,  # PLACEHOLDER: βάλε το channel ΕΚΑΒ
+    "fbi":      1529840678627049492,  # PLACEHOLDER: βάλε το channel FBI
+    "limeniko": 1529840791613083658,  # PLACEHOLDER: βάλε το channel Λιμενικό
+    "staff":    1528881706860282057,   # staff + manager πάνε ΜΑΖΙ εδώ
+    "manager":  1528881706860282057,   # staff + manager πάνε ΜΑΖΙ εδώ
+}
 
 # Invite logs: ποιος προσκάλεσε ποιον, πόσα invites/μέλη μέσα/έχουν φύγει ανά inviter
 INVITE_LOG_CHANNEL_ID = 1528881334708342824   # PLACEHOLDER
@@ -255,6 +267,13 @@ STATUS_MEMBERS_CHANNEL_ID = 1525307046784667799  # PLACEHOLDER (π.χ. "👥 Mem
 STATUS_ONLINE_CHANNEL_ID  = 1525307050543022130  # PLACEHOLDER
 STATUS_BOOSTS_CHANNEL_ID  = 1525307057773744258  # PLACEHOLDER
 STATUS_BOTS_CHANNEL_ID    = 1525307053722304544  # PLACEHOLDER
+
+# =========================================================
+# GAME STATUS PANEL (Roblox)
+# =========================================================
+ROBLOX_UNIVERSE_ID = 8512095248  # PLACEHOLDER: universe id του Roblox game
+ROBLOX_GAME_URL = f"https://www.roblox.com/games/{ROBLOX_UNIVERSE_ID}"
+GAME_PANEL_BANNER_URL = "https://i.imgur.com/5O2AMGE.jpeg"  # PLACEHOLDER: banner εικόνα
 
 # =========================================================
 # ΓΕΝΙΚΑ
