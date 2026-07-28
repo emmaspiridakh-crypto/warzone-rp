@@ -18,6 +18,16 @@ STORE_NAME = "applications"
 LOCKS_STORE = "application_locks"
 
 
+def _q_text(q) -> str:
+    """Το κείμενο μιας ερώτησης, είτε είναι απλό string είτε dict (π.χ. yesno)."""
+    return q["text"] if isinstance(q, dict) else q
+
+
+def _q_type(q) -> str:
+    """'text' (κανονική, γράφεις απάντηση) ή 'yesno' (panel με Ναι/Όχι)."""
+    return q.get("type", "text") if isinstance(q, dict) else "text"
+
+
 def _safe_name(text: str) -> str:
     text = text.lower().strip().replace(" ", "-")
     return "".join(c for c in text if c.isalnum() or c == "-")[:90]
@@ -160,10 +170,24 @@ class Applications(commands.Cog):
     # ---------------- START -> πρώτη ερώτηση ----------------
     async def send_question(self, channel: discord.TextChannel, type_key: str, step: int):
         questions = config.APPLICATION_TYPES[type_key]["questions"]
-        container = build_base_container(
-            title=f"Ερώτηση {step + 1}/{len(questions)}",
-            description=questions[step] + "\n\n*Γράψε την απάντηση σου στο channel.*",
-        )
+        q = questions[step]
+        q_type = _q_type(q)
+
+        if q_type == "yesno":
+            container = build_base_container(
+                title=f"Ερώτηση {step + 1}/{len(questions)}",
+                description=_q_text(q),
+            )
+            yes_btn = ui.Button(label="Ναι", style=discord.ButtonStyle.success,
+                                 emoji=emoji("applications", "yes"), custom_id=f"app_yn:{channel.id}:yes")
+            no_btn = ui.Button(label="Όχι", style=discord.ButtonStyle.danger,
+                                emoji=emoji("applications", "no"), custom_id=f"app_yn:{channel.id}:no")
+            add_action_row(container, yes_btn, no_btn)
+        else:
+            container = build_base_container(
+                title=f"Ερώτηση {step + 1}/{len(questions)}",
+                description=_q_text(q) + "\n\n*Γράψε την απάντηση σου στο channel.*",
+            )
         view = ui.LayoutView(timeout=None)
         view.add_item(container)
         await channel.send(view=view)
@@ -180,7 +204,7 @@ class Applications(commands.Cog):
         await interaction.response.send_message("📝 Ξεκινάμε.", ephemeral=True)
         await self.send_question(interaction.channel, info["type"], 0)
 
-    # ---------------- on_message -> καταγραφή απαντήσεων ----------------
+    # ---------------- on_message -> καταγραφή απαντήσεων (μόνο για ερωτήσεις κειμένου) ----------------
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot or not message.guild:
@@ -191,17 +215,28 @@ class Applications(commands.Cog):
             return
 
         questions = config.APPLICATION_TYPES[info["type"]]["questions"]
-        info["answers"].append(message.content)
+        current_q = questions[info["current_step"]]
+        if _q_type(current_q) == "yesno":
+            # Αυτή η ερώτηση απαντιέται μόνο με το Ναι/Όχι panel — αγνοούμε ό,τι γραφτεί.
+            return
+
+        await self._advance(message.channel, info, message.content)
+
+    # ---------------- κοινή λογική προχωρήματος στην επόμενη ερώτηση ----------------
+    async def _advance(self, channel: discord.TextChannel, info: dict, answer: str):
+        store = storage.get_store(STORE_NAME)
+        questions = config.APPLICATION_TYPES[info["type"]]["questions"]
+        info["answers"].append(answer)
         step = info["current_step"] + 1
         info["current_step"] = step
 
         if step < len(questions):
-            store[str(message.channel.id)] = info
+            store[str(channel.id)] = info
             storage.save(STORE_NAME, store)
-            await self.send_question(message.channel, info["type"], step)
+            await self.send_question(channel, info["type"], step)
         else:
             info["status"] = "ready_to_submit"
-            store[str(message.channel.id)] = info
+            store[str(channel.id)] = info
             storage.save(STORE_NAME, store)
 
             container = build_base_container(
@@ -209,11 +244,29 @@ class Applications(commands.Cog):
                 description="Πάτησε **Send** για να στείλεις την αίτηση.",
             )
             send_btn = ui.Button(label="Send", style=discord.ButtonStyle.success,
-                                  emoji=emoji("applications", "send"), custom_id=f"app_send:{message.channel.id}")
+                                  emoji=emoji("applications", "send"), custom_id=f"app_send:{channel.id}")
             add_action_row(container, send_btn)
             view = ui.LayoutView(timeout=None)
             view.add_item(container)
-            await message.channel.send(view=view)
+            await channel.send(view=view)
+
+    # ---------------- Ναι/Όχι κουμπιά ----------------
+    async def handle_yesno(self, interaction: discord.Interaction, channel_id: int, answer: str):
+        store = storage.get_store(STORE_NAME)
+        info = store.get(str(channel_id))
+        if not info or interaction.user.id != info["user_id"] or info.get("status") != "answering":
+            await interaction.response.send_message("Μόνο αυτός που έκανε την αίτηση μπορεί να απαντήσει.", ephemeral=True)
+            return
+
+        questions = config.APPLICATION_TYPES[info["type"]]["questions"]
+        current_q = questions[info["current_step"]]
+        if _q_type(current_q) != "yesno":
+            await interaction.response.send_message("Αυτή η ερώτηση δεν απαντιέται με Ναι/Όχι.", ephemeral=True)
+            return
+
+        await interaction.response.defer()
+        label = "Ναι" if answer == "yes" else "Όχι"
+        await self._advance(interaction.channel, info, label)
 
     # ---------------- SEND -> log channel με Accept/Deny ----------------
     async def handle_send(self, interaction: discord.Interaction, channel_id: int):
@@ -237,7 +290,7 @@ class Applications(commands.Cog):
         )
         add_separator(container)
         for q, a in zip(questions, info["answers"]):
-            add_text(container, f"**{q}**\n{a}")
+            add_text(container, f"**{_q_text(q)}**\n{a}")
         add_separator(container)
         accept_btn = ui.Button(label="Accept", style=discord.ButtonStyle.success,
                                 emoji=emoji("applications", "accept"), custom_id=f"app_accept:{channel_id}")
@@ -312,7 +365,7 @@ class Applications(commands.Cog):
         )
         add_separator(container)
         for q, a in zip(questions, info["answers"]):
-            add_text(container, f"**{q}**\n{a}")
+            add_text(container, f"**{_q_text(q)}**\n{a}")
         add_separator(container)
         add_text(container, status_text)
 
@@ -404,6 +457,9 @@ class Applications(commands.Cog):
             await self.start_apply(interaction, value)
         elif custom_id.startswith("app_start:"):
             await self.handle_start(interaction, int(custom_id.split(":")[1]))
+        elif custom_id.startswith("app_yn:"):
+            _, ch_id, answer = custom_id.split(":")
+            await self.handle_yesno(interaction, int(ch_id), answer)
         elif custom_id.startswith("app_send:"):
             await self.handle_send(interaction, int(custom_id.split(":")[1]))
         elif custom_id.startswith("app_close:"):
